@@ -1,0 +1,32 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Workspace settings
+.vscode/
+.idea/
+
+# Local databases and run outputs
+orcha-inventoryops/output/purchase_orders/*
+!orcha-inventoryops/output/purchase_orders/.gitkeep
+
+orcha-inventoryops/output/approvals/*
+!orcha-inventoryops/output/approvals/.gitkeep
+
+orcha-inventoryops/output/supplier_followups/*
+!orcha-inventoryops/output/supplier_followups/.gitkeep
+
+orcha-inventoryops/output/run_reports/*
+!orcha-inventoryops/output/run_reports/.gitkeep
+
+orcha-inventoryops/output/case_folders/*
+!orcha-inventoryops/output/case_folders/.gitkeep
+
+orcha-inventoryops/output/audit_logs/*
+!orcha-inventoryops/output/audit_logs/.gitkeep

@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="OrchaInventoryOps Local-First Control Center Dashboard for Mac-Native Inventory and Procurement Automation.">
+    <title>OrchaInventoryOps — Control Center Dashboard</title>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Main Stylesheetheet -->
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- HEADER -->
+        <header class="app-header">
+            <div class="logo-area">
+                <i class="fa-solid fa-network-wired logo-icon"></i>
+                <div class="brand-info">
+                    <h1>OrchaInventoryOps</h1>
+                    <span class="sub-brand">Mac-Native Control Center</span>
+                </div>
+            </div>
+            <div class="header-status">
+                <div class="status-indicator">
+                    <span class="indicator-dot active"></span>
+                    <span class="status-text">Server Active</span>
+                </div>
+                <div class="run-info">
+                    <i class="fa-solid fa-clock-history"></i>
+                    <span id="last-run-timestamp">Last run: Not executed yet</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN LAYOUT -->
+        <main class="dashboard-grid">
+            
+            <!-- LEFT COLUMN: DATABASES -->
+            <section class="dashboard-col left-col">
+                
+                <!-- INVENTORY MONITOR -->
+                <div class="dashboard-card" id="inventory-card">
+                    <div class="card-header">
+                        <div class="card-title-group">
+                            <i class="fa-solid fa-boxes-stacked header-icon"></i>
+                            <h2>Inventory Stock Monitor</h2>
+                        </div>
+                        <span class="badge" id="sku-count-badge">0 SKUs</span>
+                    </div>
+                    <div class="table-scroll">
+                        <table id="inventory-table">
+                            <thead>
+                                <tr>
+                                    <th>SKU</th>
+                                    <th>Item Description</th>
+                                    <th>Warehouse</th>
+                                    <th>Current Stock</th>
+                                    <th>Min / Target</th>
+                                    <th>Vendor</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventory-tbody">
+                                <!-- Loaded dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- PROCUREMENT LEDGER -->
+                <div class="dashboard-card" id="ledger-card">
+                    <div class="card-header">
+                        <div class="card-title-group">
+                            <i class="fa-solid fa-file-invoice-dollar header-icon"></i>
+                            <h2>Procurement Ledger (Open POs)</h2>
+                        </div>
+                        <span class="badge" id="po-count-badge">0 Orders</span>
+                    </div>
+                    <div class="table-scroll">
+                        <table id="ledger-table">
+                            <thead>
+                                <tr>
+                                    <th>PO ID</th>
+                                    <th>SKU</th>
+                                    <th>Supplier</th>
+                                    <th>Qty</th>
+                                    <th>Total Cost</th>
+                                    <th>Approval</th>
+                                    <th>Status</th>
+                                    <th>Updated</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ledger-tbody">
+                                <!-- Loaded dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- RIGHT COLUMN: RUNNER & APPROVALS -->
+            <section class="dashboard-col right-col">
+                
+                <!-- ORCHA RUNNER CENTER -->
+                <div class="dashboard-card" id="runner-card">
+                    <div class="card-header">
+                        <div class="card-title-group">
+                            <i class="fa-solid fa-play header-icon"></i>
+                            <h2>Orcha Workflow Engine</h2>
+                        </div>
+                    </div>
+                    <div class="runner-controls">
+                        <button id="btn-trigger-run" class="btn btn-primary btn-glow">
+                            <i class="fa-solid fa-bolt"></i> Trigger Workflow Execution
+                        </button>
+                        <span class="engine-state-text">Ready to dispatch local workflow nodes.</span>
+                    </div>
+                    <div class="terminal-container">
+                        <div class="terminal-header">
+                            <div class="terminal-buttons">
+                                <span class="term-dot close"></span>
+                                <span class="term-dot minimize"></span>
+                                <span class="term-dot expand"></span>
+                            </div>
+                            <span class="terminal-title">Workflow Execution Logs (Audit stdout)</span>
+                        </div>
+                        <div class="terminal-body" id="cli-console">
+                            <div class="console-line system">[SYSTEM] Awaiting execution trigger...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- APPROVAL CHECKPOINTS -->
+                <div class="dashboard-card" id="approvals-card">
+                    <div class="card-header">
+                        <div class="card-title-group">
+                            <i class="fa-solid fa-user-shield header-icon"></i>
+                            <h2>Procurement Approval Checkpoints</h2>
+                        </div>
+                        <span class="badge warning-badge" id="approvals-pending-badge">0 Pending</span>
+                    </div>
+                    <div class="approvals-list" id="approvals-list-container">
+                        <!-- Loaded dynamically -->
+                        <div class="empty-state">
+                            <i class="fa-solid fa-clipboard-check"></i>
+                            <p>No active approval requests on this run.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ERP SYNC & DATABASE SETTINGS -->
+                <div class="dashboard-card" id="settings-card">
+                    <div class="card-header">
+                        <div class="card-title-group">
+                            <i class="fa-solid fa-database header-icon"></i>
+                            <h2>Database Settings & Connection Manager</h2>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-content">
+                        <!-- File Connection Statuses -->
+                        <div class="connection-statuses">
+                            <h3 class="section-title">Active Database Paths</h3>
+                            <div class="path-status-item">
+                                <span class="path-label">Inventory Database</span>
+                                <span class="path-value">business_data/inventory/current_stock.csv</span>
+                                <span class="path-indicator success" id="status-current-stock"><i class="fa-solid fa-circle-check"></i> Connected</span>
+                            </div>
+                            <div class="path-status-item">
+                                <span class="path-label">Reorder Configuration</span>
+                                <span class="path-value">business_data/inventory/reorder_thresholds.csv</span>
+                                <span class="path-indicator success" id="status-reorder-thresholds"><i class="fa-solid fa-circle-check"></i> Connected</span>
+                            </div>
+                            <div class="path-status-item">
+                                <span class="path-label">Supplier Master Database</span>
+                                <span class="path-value">business_data/suppliers/supplier_master.csv</span>
+                                <span class="path-indicator success" id="status-supplier-master"><i class="fa-solid fa-circle-check"></i> Connected</span>
+                            </div>
+                            <div class="path-status-item">
+                                <span class="path-label">Procurement Registry Ledger</span>
+                                <span class="path-value">business_data/procurement/open_purchase_orders.csv</span>
+                                <span class="path-indicator success" id="status-open-purchase-orders"><i class="fa-solid fa-circle-check"></i> Connected</span>
+                            </div>
+                            <button id="btn-verify-connections" class="btn btn-secondary" style="width: 100%; margin-top: 10px; padding: 8px 16px; font-size: 11px;">
+                                <i class="fa-solid fa-circle-notch"></i> Verify Connection Paths
+                            </button>
+                        </div>
+
+                        <!-- Add Item to Database Form -->
+                        <div class="add-sku-section" style="margin-top: 20px;">
+                            <h3 class="section-title">Register New SKU (Add to Database)</h3>
+                            <form id="add-sku-form" class="dashboard-form">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="new-sku">SKU Code</label>
+                                        <input type="text" id="new-sku" placeholder="e.g. SKU-007" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="new-name">Item Description</label>
+                                        <input type="text" id="new-name" placeholder="e.g. Heavy Duty Bearings" required>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="new-category">Category</label>
+                                        <input type="text" id="new-category" placeholder="e.g. Mechanical">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="new-warehouse">Warehouse Location</label>
+                                        <input type="text" id="new-warehouse" placeholder="e.g. Warehouse B">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="new-stock">Current Stock Qty</label>
+                                        <input type="number" id="new-stock" value="100" min="0" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="new-threshold">Reorder Threshold</label>
+                                        <input type="number" id="new-threshold" value="30" min="0" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="new-target">Target Stock</label>
+                                        <input type="number" id="new-target" value="150" min="0" required>
+                                    </div>
+                                </div>
+                                <div class="form-row" style="margin-top: 10px;">
+                                    <div class="form-group">
+                                        <label for="new-supplier">Preferred Supplier ID</label>
+                                        <select id="new-supplier" required>
+                                            <option value="SUP-001">Apex Hardware Group (SUP-001)</option>
+                                            <option value="SUP-002">Precision Valve Corp (SUP-002)</option>
+                                            <option value="SUP-003">Dynamic Actuators Inc (SUP-003)</option>
+                                            <option value="SUP-004">Heavy Rotation Systems (SUP-004)</option>
+                                            <option value="SUP-005">Valves & Controls LLC (SUP-005)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="new-unit-cost">Unit Cost ($)</label>
+                                        <input type="number" id="new-unit-cost" value="10.00" min="0" step="0.01" required>
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 15px;">
+                                    <i class="fa-solid fa-plus-circle"></i> Add Item to Database
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CLOUD INTEGRATIONS & API CONNECTORS (OAUTH) -->
+                <div class="dashboard-card" id="integrations-card">
+                    <div class="card-header">
+                        <div class="card-title-group">
+                            <i class="fa-solid fa-key header-icon"></i>
+                            <h2>API Connectors & OAuth Manager</h2>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-content">
+                        <p class="engine-state-text" style="margin-bottom: 12px; font-size: 11px; line-height: 1.4;">
+                            Connect your live business data systems. OAuth connections store client credentials and access tokens securely on your local orchestrator.
+                        </p>
+                        
+                        <div class="connection-statuses">
+                            <!-- QuickBooks Online -->
+                            <div class="path-status-item">
+                                <span class="path-label"><i class="fa-solid fa-file-invoice"></i> QuickBooks ERP</span>
+                                <span class="path-value">OAuth 2.0 Token Sync</span>
+                                <button class="btn-sm btn-info" onclick="logConsole('Launching QuickBooks OAuth redirect flow in backend...', 'system')" style="padding: 4px 8px; font-size: 10px;">
+                                    Connect
+                                </button>
+                            </div>
+                            
+                            <!-- SAP NetWeaver / ERP -->
+                            <div class="path-status-item">
+                                <span class="path-label"><i class="fa-solid fa-server"></i> SAP / NetSuite</span>
+                                <span class="path-value">REST API Connection</span>
+                                <button class="btn-sm btn-info" onclick="logConsole('Checking SAP REST API gateway status...', 'system')" style="padding: 4px 8px; font-size: 10px;">
+                                    Configure
+                                </button>
+                            </div>
+                            
+                            <!-- Google Sheets -->
+                            <div class="path-status-item">
+                                <span class="path-label"><i class="fa-solid fa-file-excel"></i> Google Sheets</span>
+                                <span class="path-value">gspread API Auth</span>
+                                <span class="path-indicator success"><i class="fa-solid fa-link"></i> Active</span>
+                            </div>
+                        </div>
+
+                        <!-- Backend OAuth Security Notice -->
+                        <div class="empty-state" style="padding: 10px; margin-top: 15px; background: rgba(56, 189, 248, 0.03); border: 1px dashed rgba(56, 189, 248, 0.1); border-radius: 8px; text-align: left; align-items: flex-start; gap: 6px;">
+                            <div style="font-weight: 700; font-size: 10px; color: var(--accent-blue); text-transform: uppercase;">
+                                <i class="fa-solid fa-lock"></i> Backend Security Perimeter
+                            </div>
+                            <div style="font-size: 10.5px; color: var(--text-secondary); line-height: 1.4;">
+                                All Client Secrets, refresh keys, and database server credentials are stored locally in the backend configuration (`config/secrets.json`). The frontend invokes the tokens dynamically without exposing security keys to the network.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+        </main>
+
+        <!-- FOOTER -->
+        <footer class="app-footer">
+            <p><i class="fa-solid fa-shield-halved"></i> This workflow uses representative business records so the architecture, routing logic, approval model, and Mac-native automation pattern can be reviewed without exposing protected client information.</p>
+        </footer>
+    </div>
+
+    <!-- MAIN SCRIPT -->
+    <script src="index.js"></script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+warehouse_id,warehouse_name,city,manager,email
+WH-001,Eastern Logistics Center,Boston,Sarah Jenkins,s.jenkins@orchalabs-ops.com
+WH-002,Midwest Distribution Hub,Chicago,Marcus Vance,m.vance@orchalabs-ops.com
+WH-003,Pacific Northwest Depot,Seattle,Elena Rostova,e.rostova@orchalabs-ops.com

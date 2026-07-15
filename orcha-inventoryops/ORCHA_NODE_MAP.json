@@ -1,0 +1,300 @@
+{
+  "workflow_name": "OrchaInventoryOps",
+  "workflow_version": "1.2.0",
+  "description": "Mac-Native Inventory & Procurement Automation Workflow",
+  "execution_mode": "local-first",
+  "privacy_model": "privacy-safe-business-records",
+  "global_variables": {
+    "inventory_path": "business_data/inventory/current_stock.csv",
+    "thresholds_path": "business_data/inventory/reorder_thresholds.csv",
+    "supplier_master_path": "business_data/suppliers/supplier_master.csv",
+    "tracker_path": "business_data/procurement/open_purchase_orders.csv"
+  },
+  "nodes": [
+    {
+      "id": "NODE-TRG-001",
+      "name": "Schedule Trigger: Daily Inventory Check",
+      "type": "schedule_trigger",
+      "purpose": "Triggers pipeline daily at 07:00 AM",
+      "script_or_action": "cron: 0 7 * * *",
+      "on_success": "NODE-FND-002",
+      "on_failure": "workflow_halt",
+      "requires_human_review": false
+    },
+    {
+      "id": "NODE-FND-002",
+      "name": "Finder Watch Node: Inventory File Intake",
+      "type": "finder_watcher",
+      "purpose": "Monitors current stock CSV file arrival",
+      "script_or_action": "watch: business_data/inventory/current_stock.csv",
+      "on_success": "NODE-TRM-003",
+      "on_failure": "NODE-HMN-ERR",
+      "requires_human_review": false
+    },
+    {
+      "id": "NODE-TRM-003",
+      "name": "Terminal Node: ingest_inventory.py",
+      "type": "terminal_python",
+      "purpose": "Normalizes SKU records and determines days of stock remaining",
+      "script_or_action": "python scripts/ingest_inventory.py",
+      "on_success": "NODE-APP-004",
+      "on_failure": "workflow_abort",
+      "retry_policy": "RETRY_FAIL_FAST",
+      "requires_human_review": false
+    },
+    {
+      "id": "NODE-APP-004",
+      "name": "Apple Mail Search Node: Supplier Updates",
+      "type": "applescript_mail",
+      "purpose": "Searches mailbox for standard status reports and notices",
+      "script_or_action": "applescript/open_mail_supplier_search.scpt",
+      "on_success": "NODE-TRM-005",
+      "on_failure": "NODE-TRM-005",
+      "requires_human_review": false
+    },
+    {
+      "id": "NODE-TRM-005",
+      "name": "Terminal Node: parse_supplier_update.py",
+      "type": "terminal_python",
+      "purpose": "Parses pricing changes and delivery delay comments from message files",
+      "script_or_action": "python scripts/parse_supplier_update.py",
+      "on_success": "NODE-FND-006",
+      "on_failure": "NODE-FND-006",
+      "requires_human_review": false
+    },
+    {
+      "id": "NODE-FND-006",
+      "name": "Finder Watch Node: Documents/Invoices Intake",
+      "type": "finder_watcher",
+      "purpose": "Scans documents directory for incoming invoices",
+      "script_or_action": "watch: business_data/documents/",
+      "on_success": "NODE-TRM-007",
+      "on_failure": "NODE-TRM-008",
+      "requires_human_review": false
+    },
+    {
+      "id": "NODE-TRM-007",
+      "name": "Terminal Node: extract_invoice_fields.py",
+      "type": "terminal_python",
+      "purpose": "OCR-style data extraction with character error correction",
+      "script_or_action": "python scripts/extract_invoice_fields.py",
+      "on_success": "NODE-TRM-008",
+      "on_failure": "NODE-TRM-013",
+      "requires_human_review": false
+    },
+    {
+      "id": "NODE-TRM-008",
+      "name": "Terminal Node: stock_reorder_engine.py",
+      "type": "terminal_python",
+      "purpose": "Determines reorder necessity and target quantities",
+      "script_or_action": "python scripts/stock_reorder_engine.py",
+      "on_success": "NODE-TRM-009",
+      "on_failure": "workflow_halt",
+      "requires_human_review": false
+    },
+    {
+      "id": "NODE-TRM-009",
+      "name": "Terminal Node: supplier_selection.py",
+      "type": "terminal_python",
+      "purpose": "Scores approved vendors using reliability and delay factors",
+      "script_or_action": "python scripts/supplier_selection.py",
+      "on_success": "NODE-TRM-010",
+      "on_failure": "workflow_abort",
+      "requires_human_review": false
+    },
+    {
+      "id": "NODE-TRM-010",
+      "name": "Terminal Node: invoice_match_check.py",
+      "type": "terminal_python",
+      "purpose": "Checks billing variance against compliance thresholds",
+      "script_or_action": "python scripts/invoice_match_check.py",
+      "on_success": "NODE-CND-011",
+      "on_failure": "NODE-TRM-013",
+      "requires_human_review": false
+    },
+    {
+      "id": "NODE-CND-011",
+      "name": "Conditional Node: Evaluator",
+      "type": "conditional_router",
+      "purpose": "Routes SKUs based on exception triggers and reorder needs",
+      "script_or_action": "routing_conditions",
+      "on_success": "NODE-TRM-013",
+      "on_failure": "NODE-END-012",
+      "requires_human_review": false
+    },
+    {
+      "id": "NODE-END-012",
+      "name": "End Node: Log & Monitor",
+      "type": "terminus",
+      "purpose": "Concludes processing for healthy SKUs",
+      "script_or_action": "terminate",
+      "requires_human_review": false
+    },
+    {
+      "id": "NODE-TRM-013",
+      "name": "Terminal Node: approval_router.py",
+      "type": "terminal_python",
+      "purpose": "Routes high-value or mismatched items to review checklist",
+      "script_or_action": "python scripts/approval_router.py",
+      "on_success": "NODE-HMN-014",
+      "on_failure": "workflow_abort",
+      "requires_human_review": true
+    },
+    {
+      "id": "NODE-HMN-014",
+      "name": "Human Approval Node: Procurement Approval",
+      "type": "human_checkpoint",
+      "purpose": "Waits for a local file-based decision signature",
+      "script_or_action": "watch: output/approvals/approval_decision_{sku}.txt",
+      "on_success": "NODE-TRM-015",
+      "on_failure": "NODE-TRM-018",
+      "requires_human_review": true
+    },
+    {
+      "id": "NODE-TRM-015",
+      "name": "Terminal Node: generate_purchase_order.py",
+      "type": "terminal_python",
+      "purpose": "Compiles approved orders using corporate templates",
+      "script_or_action": "python scripts/generate_purchase_order.py",
+      "on_success": "NODE-TRM-016",
+      "on_failure": "workflow_abort",
+      "requires_human_review": false
+    },
+    {
+      "id": "NODE-TRM-016",
+      "name": "Terminal Node: update_inventory_tracker.py",
+      "type": "terminal_python",
+      "purpose": "Appends PO info idempotently to open purchase orders register",
+      "script_or_action": "python scripts/update_inventory_tracker.py",
+      "on_success": "NODE-APP-019",
+      "on_failure": "workflow_halt",
+      "requires_human_review": false
+    },
+    {
+      "id": "NODE-TRM-018",
+      "name": "Terminal Node: generate_supplier_followup.py",
+      "type": "terminal_python",
+      "purpose": "Generates draft follow-up files for anomalies",
+      "script_or_action": "python scripts/generate_supplier_followup.py",
+      "on_success": "NODE-APP-022",
+      "on_failure": "workflow_halt",
+      "requires_human_review": false
+    },
+    {
+      "id": "NODE-APP-019",
+      "name": "AppleScript Node: Create Finder Case Folder",
+      "type": "applescript_finder",
+      "purpose": "Assembles a local directory in Finder for order files",
+      "script_or_action": "applescript/create_finder_procurement_folder.scpt",
+      "on_success": "NODE-APP-020",
+      "on_failure": "NODE-APP-020",
+      "requires_human_review": false
+    },
+    {
+      "id": "NODE-APP-020",
+      "name": "AppleScript Node: Update Numbers Inventory Tracker",
+      "type": "applescript_numbers",
+      "purpose": "Displays spreadsheet in Apple Numbers",
+      "script_or_action": "applescript/update_numbers_inventory_tracker.scpt",
+      "on_success": "NODE-APP-021",
+      "on_failure": "NODE-APP-021",
+      "requires_human_review": false
+    },
+    {
+      "id": "NODE-APP-021",
+      "name": "AppleScript Node: Open Purchase Order for Review",
+      "type": "applescript_textedit",
+      "purpose": "Launches default viewer for visual validation of compiled PO",
+      "script_or_action": "applescript/open_purchase_order_for_review.scpt",
+      "on_success": "NODE-END-023",
+      "on_failure": "NODE-END-023",
+      "requires_human_review": false
+    },
+    {
+      "id": "NODE-APP-022",
+      "name": "AppleScript Node: Create Calendar Supplier Follow-up",
+      "type": "applescript_calendar",
+      "purpose": "Schedules deadlines and notifications in Apple Calendar",
+      "script_or_action": "applescript/create_calendar_supplier_followup.scpt",
+      "on_success": "NODE-END-024",
+      "on_failure": "NODE-END-024",
+      "requires_human_review": false
+    },
+    {
+      "id": "NODE-END-023",
+      "name": "End Node: Order Dispatched",
+      "type": "terminus",
+      "purpose": "Completed procurement run",
+      "script_or_action": "terminate",
+      "requires_human_review": false
+    },
+    {
+      "id": "NODE-END-024",
+      "name": "End Node: Paused Awaiting Human Input",
+      "type": "terminus",
+      "purpose": "Pipeline held at approval gate",
+      "script_or_action": "terminate",
+      "requires_human_review": false
+    }
+  ],
+  "edges": [
+    { "source": "NODE-TRG-001", "target": "NODE-FND-002" },
+    { "source": "NODE-FND-002", "target": "NODE-TRM-003" },
+    { "source": "NODE-TRM-003", "target": "NODE-APP-004" },
+    { "source": "NODE-APP-004", "target": "NODE-TRM-005" },
+    { "source": "NODE-TRM-005", "target": "NODE-FND-006" },
+    { "source": "NODE-FND-006", "target": "NODE-TRM-007" },
+    { "source": "NODE-TRM-007", "target": "NODE-TRM-008" },
+    { "source": "NODE-TRM-008", "target": "NODE-TRM-009" },
+    { "source": "NODE-TRM-009", "target": "NODE-TRM-010" },
+    { "source": "NODE-TRM-010", "target": "NODE-CND-011" },
+    { "source": "NODE-CND-011", "target": "NODE-TRM-013", "condition": "exception_triggered" },
+    { "source": "NODE-CND-011", "target": "NODE-END-012", "condition": "healthy_no_action" },
+    { "source": "NODE-TRM-013", "target": "NODE-HMN-014" },
+    { "source": "NODE-HMN-014", "target": "NODE-TRM-015", "condition": "approved" },
+    { "source": "NODE-HMN-014", "target": "NODE-TRM-018", "condition": "hold_or_more_info" },
+    { "source": "NODE-TRM-015", "target": "NODE-TRM-016" },
+    { "source": "NODE-TRM-016", "target": "NODE-APP-019" },
+    { "source": "NODE-APP-019", "target": "NODE-APP-020" },
+    { "source": "NODE-APP-020", "target": "NODE-APP-021" },
+    { "source": "NODE-APP-021", "target": "NODE-END-023" },
+    { "source": "NODE-TRM-018", "target": "NODE-APP-022" },
+    { "source": "NODE-APP-022", "target": "NODE-END-024" }
+  ],
+  "retry_policies": {
+    "RETRY_FAIL_FAST": { "max_attempts": 1, "backoff_seconds": 0 },
+    "RETRY_STANDARD": { "max_attempts": 3, "backoff_seconds": 60 }
+  },
+  "fallback_policies": {
+    "LOW_OCR_CONFIDENCE": { "action": "ROUTE_TO_MANUAL_REVIEW" },
+    "SUPPLIER_DELAY": { "action": "ROUTE_TO_BACKUP" },
+    "INVOICE_MISMATCH": { "action": "HOLD_AND_FLAG" }
+  },
+  "approval_checkpoints": {
+    "SKU-003": { "approver_role": "VP of Operations", "trigger": "CRITICAL_URGENT_VALUE" },
+    "SKU-006": { "approver_role": "VP of Operations", "trigger": "HIGH_VALUE_THRESHOLD" },
+    "SKU-004": { "approver_role": "Finance Director", "trigger": "PRICING_MISMATCH" }
+  },
+  "audit_events": [
+    "TRIGGER_FIRED",
+    "INVENTORY_FILE_DETECTED",
+    "INVENTORY_PARSED",
+    "MAILBOX_SEARCH_COMPLETED",
+    "SUPPLIER_UPDATES_PARSED",
+    "INVOICES_DETECTED",
+    "INVOICE_FIELDS_EXTRACTED",
+    "REORDER_RECOMMENDATION_CALCULATED",
+    "SUPPLIER_RECONCILIATION_FINISHED",
+    "INVOICE_CHECK_COMPLETE",
+    "ROUTING_DETERMINED",
+    "APPROVAL_FORM_PUBLISHED",
+    "HUMAN_DECISION_REGISTERED",
+    "PURCHASE_ORDER_COMPILED",
+    "OPEN_ORDER_TRACKER_UPDATED",
+    "FINDER_WORKSPACE_COMPILED",
+    "SPREADSHEET_UI_LAUNCHED",
+    "PO_SHOWN_FOR_VERIFICATION",
+    "FOLLOWUP_DRAFTED",
+    "CALENDAR_EVENT_SCHEDULED"
+  ]
+}

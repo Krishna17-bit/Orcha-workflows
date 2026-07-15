@@ -1,0 +1,5 @@
+rule_id,field,tolerance,action
+MATCH-001,unit_price,0.02,REJECT_AND_REVIEW
+MATCH-002,quantity,0.00,HOLD_INVOICE
+MATCH-003,total_amount,0.01,HOLD_INVOICE
+MATCH-004,payment_terms,0.00,REVIEW_TERMS

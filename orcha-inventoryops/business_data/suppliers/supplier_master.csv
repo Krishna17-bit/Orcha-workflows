@@ -1,0 +1,6 @@
+supplier_id,supplier_name,contact_name,email,phone,average_lead_time_days,reliability_score,standard_payment_terms,preferred_categories,base_discount_percent
+SUP-001,Apex Hardware Group,Robert Chen,r.chen@apexhardware-supply.com,+1-555-0190,5,0.95,Net 30,Hardware,2.5
+SUP-002,Precision Valve Corp,Janice Miller,j.miller@precisionvalves-ind.com,+1-555-0143,7,0.92,Net 30,Valves,0.0
+SUP-003,Dynamic Actuators Inc,Takahiro Sato,t.sato@dynamicactuators.com,+1-555-0182,10,0.88,Net 45,Actuators,5.0
+SUP-004,Heavy Rotation Systems,Carl Lindgren,c.lindgren@heavyrotationsystems-se.com,+46-8-555-0211,15,0.97,Net 60,Heavy Machinery,3.0
+SUP-005,Valves & Controls LLC,Amanda Vance,a.vance@valvescontrols-ops.com,+1-555-0234,4,0.94,Net 30,Valves,1.0

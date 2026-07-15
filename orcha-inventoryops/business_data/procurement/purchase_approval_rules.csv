@@ -1,0 +1,5 @@
+rule_id,condition,approval_required,approver_role,limit_amount,reason
+APP-001,total_value > threshold,true,Operations Manager,5000.00,Standard spending limits policy
+APP-002,urgency == CRITICAL,true,VP of Operations,0.00,Urgent procurement safety oversight
+APP-003,reliability < 0.90,true,Procurement Lead,0.00,Vendor quality assurance exception
+APP-004,price_mismatch > tolerance,true,Finance Director,0.00,Pricing mismatch policy variance
