@@ -1,0 +1,437 @@
+{
+  "workflow_name": "OrchaSalesFlow",
+  "workflow_version": "1.0.0",
+  "description": "Mac-Native Sales Pipeline Automation",
+  "execution_mode": "local-first",
+  "privacy_model": "privacy-safe-business-records",
+  "global_variables": {
+    "run_id": "string",
+    "trigger_timestamp": "string",
+    "lead_id": "string",
+    "company_name": "string",
+    "contact_name": "string",
+    "contact_email": "string",
+    "contact_phone": "string",
+    "requirement": "string",
+    "budget": "double",
+    "urgency": "string",
+    "timeline": "string",
+    "attachment_reference": "string",
+    "ocr_confidence": "double",
+    "lead_score": "integer",
+    "pipeline_stage": "string",
+    "deal_value": "double",
+    "proposal_path": "string",
+    "approval_required": "boolean",
+    "followup_date": "string"
+  },
+  "nodes": [
+    {
+      "id": "node_schedule_trigger",
+      "name": "Weekday Sales Intake",
+      "type": "ScheduleTrigger",
+      "purpose": "Initiates pipeline runs at scheduled intervals",
+      "inputs": [],
+      "outputs": ["trigger_timestamp"],
+      "script_or_action": "cron: 0 9 * * 1-5",
+      "on_success": "node_finder_watch",
+      "on_failure": "halt",
+      "retry_policy": "none",
+      "requires_human_review": false
+    },
+    {
+      "id": "node_finder_watch",
+      "name": "Lead Intake Folder",
+      "type": "FinderWatchNode",
+      "purpose": "Monitors local directories for incoming request files",
+      "inputs": [],
+      "outputs": ["new_lead_file_paths"],
+      "script_or_action": "watch: ./business_data/inbox/*.txt",
+      "on_success": "node_mail_search",
+      "on_failure": "halt",
+      "retry_policy": "none",
+      "requires_human_review": false
+    },
+    {
+      "id": "node_mail_search",
+      "name": "Lead Email Search",
+      "type": "AppleScriptNode",
+      "purpose": "Searches Apple Mail to verify previous correspondence",
+      "inputs": ["contact_email"],
+      "outputs": ["mail_thread_exists"],
+      "script_or_action": "./applescript/open_mail_and_search.scpt",
+      "on_success": "node_parse_email",
+      "on_failure": "node_parse_email",
+      "retry_policy": "mail_query_retry",
+      "requires_human_review": false
+    },
+    {
+      "id": "node_parse_email",
+      "name": "Parse Lead Email",
+      "type": "PythonTerminalNode",
+      "purpose": "Parses fields from raw text emails",
+      "inputs": ["new_lead_file_paths"],
+      "outputs": [
+        "lead_id", "company_name", "contact_name", "contact_email",
+        "contact_phone", "requirement", "budget", "urgency",
+        "timeline", "attachment_reference"
+      ],
+      "script_or_action": "./scripts/parse_email.py",
+      "on_success": "node_check_budget_presence",
+      "on_failure": "halt",
+      "retry_policy": "none",
+      "requires_human_review": false
+    },
+    {
+      "id": "node_check_budget_presence",
+      "name": "Missing Budget Classifier",
+      "type": "ConditionalNode",
+      "purpose": "Branches execution if budget data is missing",
+      "inputs": ["budget"],
+      "outputs": ["branch"],
+      "script_or_action": "budget != null",
+      "on_success": "node_ocr_quote",
+      "on_failure": "node_clarification_path",
+      "retry_policy": "none",
+      "requires_human_review": false
+    },
+    {
+      "id": "node_ocr_quote",
+      "name": "Quote Document Extraction",
+      "type": "OcrVisionNode",
+      "purpose": "Performs OCR on quote text files",
+      "inputs": ["attachment_reference"],
+      "outputs": ["raw_ocr_text"],
+      "script_or_action": "vision_extract: ./business_data/attachments/{{attachment_reference}}",
+      "on_success": "node_extract_quote_fields",
+      "on_failure": "node_extract_quote_fields",
+      "retry_policy": "ocr_extraction",
+      "requires_human_review": false
+    },
+    {
+      "id": "node_extract_quote_fields",
+      "name": "Extract Quote Fields",
+      "type": "PythonTerminalNode",
+      "purpose": "Parses quote specifications and outputs confidence score",
+      "inputs": ["raw_ocr_text"],
+      "outputs": [
+        "vendor_or_company", "requested_service", "quantity",
+        "estimated_budget", "requested_discount", "deadline",
+        "payment_terms", "ocr_confidence"
+      ],
+      "script_or_action": "./scripts/extract_quote_fields.py",
+      "on_success": "node_check_ocr_confidence",
+      "on_failure": "node_ocr_retry_fallback",
+      "retry_policy": "none",
+      "requires_human_review": false
+    },
+    {
+      "id": "node_check_ocr_confidence",
+      "name": "OCR Confidence Classifier",
+      "type": "ConditionalNode",
+      "purpose": "Flags low-confidence OCR text",
+      "inputs": ["ocr_confidence"],
+      "outputs": ["branch"],
+      "script_or_action": "ocr_confidence >= 0.70",
+      "on_success": "node_lead_scoring",
+      "on_failure": "node_ocr_retry_fallback",
+      "retry_policy": "none",
+      "requires_human_review": false
+    },
+    {
+      "id": "node_ocr_retry_fallback",
+      "name": "Spelling Correction Fallback",
+      "type": "FallbackCorrectionNode",
+      "purpose": "Runs spelling heuristics to repair scan typos",
+      "inputs": ["raw_ocr_text"],
+      "outputs": ["ocr_confidence", "quote_data"],
+      "script_or_action": "apply_spelling_corrections",
+      "on_success": "node_lead_scoring",
+      "on_failure": "node_lead_scoring",
+      "retry_policy": "none",
+      "requires_human_review": false
+    },
+    {
+      "id": "node_lead_scoring",
+      "name": "Lead Scoring Grader",
+      "type": "PythonTerminalNode",
+      "purpose": "Applies business scoring rules to grade lead record",
+      "inputs": ["email_data", "quote_data"],
+      "outputs": [
+        "lead_score", "segment", "pipeline_stage", "recommended_next_action"
+      ],
+      "script_or_action": "./scripts/lead_scoring.py",
+      "on_success": "node_pricing_check",
+      "on_failure": "halt",
+      "retry_policy": "none",
+      "requires_human_review": false
+    },
+    {
+      "id": "node_pricing_check",
+      "name": "Pricing Exception Checker",
+      "type": "PythonTerminalNode",
+      "purpose": "Enforces pricing compliance thresholds",
+      "inputs": ["email_data", "quote_data"],
+      "outputs": [
+        "approval_required", "approval_reasons", "deal_value", "payment_terms"
+      ],
+      "script_or_action": "./scripts/pricing_check.py",
+      "on_success": "node_check_approval_required",
+      "on_failure": "node_human_approval_checkpoint",
+      "retry_policy": "none",
+      "requires_human_review": false
+    },
+    {
+      "id": "node_check_approval_required",
+      "name": "Pricing Exception Gate",
+      "type": "ConditionalNode",
+      "purpose": "Determines if pricing exceptions require review",
+      "inputs": ["approval_required"],
+      "outputs": ["branch"],
+      "script_or_action": "approval_required == true",
+      "on_success": "node_human_approval_checkpoint",
+      "on_failure": "node_generate_proposal",
+      "retry_policy": "none",
+      "requires_human_review": false
+    },
+    {
+      "id": "node_human_approval_checkpoint",
+      "name": "Pricing Exception Review",
+      "type": "HumanApprovalCheckpoint",
+      "purpose": "Halts execution and awaits manager approval file",
+      "inputs": ["approval_request_path"],
+      "outputs": ["manager_decision"],
+      "script_or_action": "poll: ./output/approvals/approval_decision.txt",
+      "on_success": "node_check_manager_decision",
+      "on_failure": "pause",
+      "retry_policy": "none",
+      "requires_human_review": true
+    },
+    {
+      "id": "node_check_manager_decision",
+      "name": "Approval Decision Gate",
+      "type": "ConditionalNode",
+      "purpose": "Routes thread based on manager choice",
+      "inputs": ["manager_decision"],
+      "outputs": ["branch"],
+      "script_or_action": "manager_decision",
+      "on_success": "node_generate_proposal",
+      "on_failure": "node_update_crm_disqualified",
+      "retry_policy": "none",
+      "requires_human_review": false
+    },
+    {
+      "id": "node_generate_proposal",
+      "name": "Compile Sales Proposal",
+      "type": "PythonTerminalNode",
+      "purpose": "Compiles proposal markdown document from template",
+      "inputs": ["email_data", "pricing_data"],
+      "outputs": ["proposal_path"],
+      "script_or_action": "./scripts/generate_proposal.py",
+      "on_success": "node_create_finder_folder",
+      "on_failure": "halt",
+      "retry_policy": "proposal_compile_retry",
+      "requires_human_review": false
+    },
+    {
+      "id": "node_clarification_path",
+      "name": "Compile Clarification Letter",
+      "type": "PythonTerminalNode",
+      "purpose": "Generates client query letter when info is missing",
+      "inputs": ["email_data"],
+      "outputs": ["proposal_path"],
+      "script_or_action": "./scripts/generate_proposal.py",
+      "on_success": "node_create_finder_folder",
+      "on_failure": "node_create_finder_folder",
+      "retry_policy": "none",
+      "requires_human_review": false
+    },
+    {
+      "id": "node_update_crm_disqualified",
+      "name": "CRM Closed Lost Update",
+      "type": "PythonTerminalNode",
+      "purpose": "Updates the local database with Closed Lost parameters",
+      "inputs": ["lead_id"],
+      "outputs": [],
+      "script_or_action": "./scripts/update_crm.py",
+      "on_success": "node_write_audit_log",
+      "on_failure": "node_write_audit_log",
+      "retry_policy": "none",
+      "requires_human_review": false
+    },
+    {
+      "id": "node_create_finder_folder",
+      "name": "Create Finder Case Folder",
+      "type": "AppleScriptNode",
+      "purpose": "Creates local directory structure in Finder",
+      "inputs": ["lead_id", "company_name"],
+      "outputs": ["case_folder_path"],
+      "script_or_action": "./applescript/create_finder_case_folder.scpt",
+      "on_success": "node_update_crm_numbers",
+      "on_failure": "node_update_crm_numbers",
+      "retry_policy": "finder_retry",
+      "requires_human_review": false
+    },
+    {
+      "id": "node_update_crm_numbers",
+      "name": "Update Numbers CRM",
+      "type": "AppleScriptNode",
+      "purpose": "Updates CRM sheet in Apple Numbers",
+      "inputs": ["lead_id", "company_name", "deal_value", "pipeline_stage", "payment_terms"],
+      "outputs": [],
+      "script_or_action": "./applescript/update_numbers_crm.scpt",
+      "on_success": "node_create_calendar_followup",
+      "on_failure": "node_create_calendar_followup",
+      "retry_policy": "numbers_update_retry",
+      "requires_human_review": false
+    },
+    {
+      "id": "node_create_calendar_followup",
+      "name": "Create Calendar Followup",
+      "type": "AppleScriptNode",
+      "purpose": "Schedules follow-up appointment in Apple Calendar",
+      "inputs": ["company_name", "followup_date", "recommended_next_action"],
+      "outputs": [],
+      "script_or_action": "./applescript/create_calendar_followup.scpt",
+      "on_success": "node_open_proposal",
+      "on_failure": "node_open_proposal",
+      "retry_policy": "calendar_retry",
+      "requires_human_review": false
+    },
+    {
+      "id": "node_open_proposal",
+      "name": "Open Proposal Review",
+      "type": "AppleScriptNode",
+      "purpose": "Opens compiled markdown proposal for account manager review",
+      "inputs": ["proposal_path"],
+      "outputs": [],
+      "script_or_action": "./applescript/open_proposal_for_review.scpt",
+      "on_success": "node_write_audit_log",
+      "on_failure": "node_write_audit_log",
+      "retry_policy": "none",
+      "requires_human_review": false
+    },
+    {
+      "id": "node_write_audit_log",
+      "name": "Write Audit Log",
+      "type": "AuditLogNode",
+      "purpose": "Emits execution metrics to JSONL compliance logs",
+      "inputs": [],
+      "outputs": [],
+      "script_or_action": "./scripts/audit_logger.py",
+      "on_success": "node_end",
+      "on_failure": "node_end",
+      "retry_policy": "none",
+      "requires_human_review": false
+    },
+    {
+      "id": "node_end",
+      "name": "End Node",
+      "type": "EndNode",
+      "purpose": "Saves logs and exits",
+      "inputs": [],
+      "outputs": [],
+      "script_or_action": "exit",
+      "on_success": "success",
+      "on_failure": "success",
+      "retry_policy": "none",
+      "requires_human_review": false
+    }
+  ],
+  "edges": [
+    { "source": "node_schedule_trigger", "target": "node_finder_watch" },
+    { "source": "node_finder_watch", "target": "node_mail_search" },
+    { "source": "node_mail_search", "target": "node_parse_email" },
+    { "source": "node_parse_email", "target": "node_check_budget_presence" },
+    { "source": "node_check_budget_presence", "condition": "true", "target": "node_ocr_quote" },
+    { "source": "node_check_budget_presence", "condition": "false", "target": "node_clarification_path" },
+    { "source": "node_ocr_quote", "target": "node_extract_quote_fields" },
+    { "source": "node_extract_quote_fields", "target": "node_check_ocr_confidence" },
+    { "source": "node_check_ocr_confidence", "condition": "true", "target": "node_lead_scoring" },
+    { "source": "node_check_ocr_confidence", "condition": "false", "target": "node_ocr_retry_fallback" },
+    { "source": "node_ocr_retry_fallback", "target": "node_lead_scoring" },
+    { "source": "node_lead_scoring", "target": "node_pricing_check" },
+    { "source": "node_pricing_check", "target": "node_check_approval_required" },
+    { "source": "node_check_approval_required", "condition": "true", "target": "node_human_approval_checkpoint" },
+    { "source": "node_check_approval_required", "condition": "false", "target": "node_generate_proposal" },
+    { "source": "node_human_approval_checkpoint", "target": "node_check_manager_decision" },
+    { "source": "node_check_manager_decision", "condition": "APPROVE", "target": "node_generate_proposal" },
+    { "source": "node_check_manager_decision", "condition": "REJECT", "target": "node_update_crm_disqualified" },
+    { "source": "node_check_manager_decision", "condition": "REQUEST_MORE_INFO", "target": "node_clarification_path" },
+    { "source": "node_generate_proposal", "target": "node_create_finder_folder" },
+    { "source": "node_clarification_path", "target": "node_create_finder_folder" },
+    { "source": "node_update_crm_disqualified", "target": "node_write_audit_log" },
+    { "source": "node_create_finder_folder", "target": "node_update_crm_numbers" },
+    { "source": "node_update_crm_numbers", "target": "node_create_calendar_followup" },
+    { "source": "node_create_calendar_followup", "target": "node_open_proposal" },
+    { "source": "node_open_proposal", "target": "node_write_audit_log" },
+    { "source": "node_write_audit_log", "target": "node_end" }
+  ],
+  "retry_policies": {
+    "ocr_extraction": {
+      "max_attempts": 2,
+      "backoff_seconds": 10
+    },
+    "mail_query_retry": {
+      "max_attempts": 2,
+      "backoff_seconds": 5
+    },
+    "proposal_compile_retry": {
+      "max_attempts": 2,
+      "backoff_seconds": 2
+    },
+    "finder_retry": {
+      "max_attempts": 2,
+      "backoff_seconds": 2
+    },
+    "numbers_update_retry": {
+      "max_attempts": 3,
+      "backoff_seconds": 5
+    },
+    "calendar_retry": {
+      "max_attempts": 2,
+      "backoff_seconds": 5
+    }
+  },
+  "fallback_policies": {
+    "missing_budget": {
+      "condition": "budget == null",
+      "action": "route_to_clarification_path"
+    },
+    "low_ocr_confidence": {
+      "condition": "ocr_confidence < 0.70",
+      "action": "apply_spelling_corrections"
+    }
+  },
+  "approval_checkpoints": {
+    "pricing_exceptions": {
+      "conditions": [
+        "discount > 0.15",
+        "budget < catalog_minimum",
+        "payment_terms != 'Net 30'"
+      ],
+      "actions_allowed": ["APPROVE", "REJECT", "REQUEST_MORE_INFO"]
+    }
+  },
+  "audit_events": [
+    "WORKFLOW_TRIGGERED",
+    "FILES_DETECTED",
+    "MAIL_QUERY_COMPLETE",
+    "EMAIL_PARSED",
+    "OCR_TEXT_EXTRACTED",
+    "OCR_FALLBACK_APPLIED",
+    "LEAD_SCORED",
+    "PRICING_VERIFIED",
+    "APPROVAL_REQUEST_SUBMITTED",
+    "APPROVAL_RESOLVED",
+    "PROPOSAL_COMPILED",
+    "CLARIFICATION_LETTER_COMPILED",
+    "FINDER_DIRECTORY_CREATED",
+    "SPREADSHEET_UPDATED",
+    "CALENDAR_EVENT_CREATED",
+    "PROPOSAL_OPENED",
+    "CRM_RECORD_UPDATED",
+    "AUDIT_LOG_COMMITTED",
+    "PIPELINE_COMPLETE"
+  ]
+}

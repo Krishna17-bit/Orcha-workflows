@@ -1,0 +1,6 @@
+rule_id,rule_name,criterion,value,action,description
+PR_001,Max Standard Discount,discount,0.15,flag_approval,Discounts above 15% require human approval.
+PR_002,Minimum Deal Value,budget,10000,flag_approval,Budgets below $10,000 require manager approval.
+PR_003,Net 30 Terms,payment_terms,Net 30,none,Standard payment terms.
+PR_004,Non-standard Terms,payment_terms,Net 60;Net 90,flag_approval,Net 60/90 payment terms require approval.
+PR_005,Urgent Surcharge,urgency,Critical,add_surcharge_10,Critical urgency adds a 10% delivery surcharge.

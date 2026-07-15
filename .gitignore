@@ -30,3 +30,25 @@ orcha-inventoryops/output/case_folders/*
 
 orcha-inventoryops/output/audit_logs/*
 !orcha-inventoryops/output/audit_logs/.gitkeep
+
+# OrchaSalesFlow local databases and run outputs
+orcha-salesflow/output/proposals/*
+!orcha-salesflow/output/proposals/.gitkeep
+
+orcha-salesflow/output/approvals/*
+!orcha-salesflow/output/approvals/.gitkeep
+
+orcha-salesflow/output/case_folders/*
+!orcha-salesflow/output/case_folders/.gitkeep
+
+orcha-salesflow/output/audit_logs/*
+!orcha-salesflow/output/audit_logs/.gitkeep
+
+orcha-salesflow/output/run_reports/*
+!orcha-salesflow/output/run_reports/.gitkeep
+
+orcha-salesflow/business_data/inbox/*
+!orcha-salesflow/business_data/inbox/.gitkeep
+
+orcha-salesflow/business_data/attachments/*
+!orcha-salesflow/business_data/attachments/.gitkeep

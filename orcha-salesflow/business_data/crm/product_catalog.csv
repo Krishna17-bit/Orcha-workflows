@@ -1,0 +1,8 @@
+product_code,product_name,base_price,price_unit,min_budget,description
+SVC-CLOUD-MIG,Cloud Migration,100000,flat,80000,Full migration of infrastructure to cloud.
+SVC-MNG-OPS,Managed Operations,5000,monthly,20000,Ongoing systems management and tier-2/3 support.
+SVC-CRM-CUST,CRM Customization,15000,flat,12000,Tailoring fields, pipelines, and integrations.
+SVC-CRM-TRN,CRM Staff Training,10000,flat,8000,Interactive training sessions and documentation.
+SVC-SEC-AUD,Security Audit,50000,flat,40000,Comprehensive compliance and vulnerability audit.
+SVC-SEC-IMP,Security Implementation,60000,flat,50000,Remediation of audit vulnerabilities and security patching.
+SVC-SUP-T2,Dedicated Support Tier 2,2000,monthly,15000,Premium support SLA with 1 hour response time.
